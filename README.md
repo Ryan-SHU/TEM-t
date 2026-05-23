@@ -39,6 +39,44 @@ where `Attn(q, K, V) = softmax(β · qK^T / √d_k) V`.
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    subgraph Input
+        X["x_{t+1} (next sensory)"]
+        A["a_t (action)"]
+        G["g_t (current position)"]
+        M["M_t (episodic memory)"]
+    end
+
+    subgraph predict_next["predict_next (no x_{t+1})"]
+        PI["g_{t+1}^{PI} = σ(g_t W_{a_t})"]
+        Q["q = project_position(g_{t+1}^{PI})"]
+        ATT["attn = softmax(β · qK^T / √d_k)"]
+        READ["r = α · V_x"]
+        LOGITS["logits_pi = f_pred(r)"]
+    end
+
+    subgraph observe_next["observe_next (with x_{t+1})"]
+        LAND["g_retrieved = landmark(x_{t+1}, M_t)"]
+        FUSE["g_{t+1} = g_{t+1}^{PI} + η ⊙ (g_retrieved - g_{t+1}^{PI})"]
+        WRITE["M_{t+1} = write(g_{t+1}, x_{t+1})"]
+    end
+
+    G --> PI
+    A --> PI
+    PI --> Q
+    Q --> ATT
+    M --> ATT
+    ATT --> READ
+    READ --> LOGITS
+    X --> LAND
+    M --> LAND
+    PI --> FUSE
+    LAND --> FUSE
+    FUSE --> WRITE
+    X --> WRITE
+    G --> WRITE
+```
 
 ### Two-Phase Online Protocol (No Information Leakage)
 
