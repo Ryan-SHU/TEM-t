@@ -167,7 +167,7 @@ This repository reproduces four experiments from the paper.
 ```bash
 # 1. Train the model
 python script/train_temt.py \
-  --model_config config/model_temt.yaml \
+  --model_config config/model_temt.yaml \1
   --dataset_config config/dataset_2d_grid.yaml \
   --train_config config/train.yaml \
   --exp_dir experiments/exp01_entorhinal_representations/run001 \

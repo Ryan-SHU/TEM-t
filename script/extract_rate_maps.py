@@ -16,10 +16,13 @@ Usage:
 
 import argparse
 import os
+import sys
 import json
 import yaml
 
 import torch
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from script.train_temt import build_model
 from training.envs import GridWorldSpec, TrajectorySampler

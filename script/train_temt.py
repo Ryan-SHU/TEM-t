@@ -12,10 +12,14 @@ Usage:
 
 import argparse
 import os
+import sys
 import json
 import yaml
 
 import torch
+
+# Ensure project root is on the Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model.temt import TEMTModel
 from training.envs import GridWorldSpec, TrajectorySampler

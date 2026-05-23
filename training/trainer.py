@@ -229,6 +229,7 @@ class Trainer:
                     "total": loss_out.total.item(),
                     "dt": dt,
                 }
+                os.makedirs(os.path.dirname(self._train_log_path), exist_ok=True)
                 with open(self._train_log_path, "a") as f:
                     f.write(json.dumps(log_entry) + "\n")
 
@@ -246,7 +247,8 @@ class Trainer:
                     "global_step": state.global_step,
                     **eval_out.metrics,
                 }
-                with open(self._eval_log_path, "a") as f:
+                os.makedirs(os.path.dirname(self._eval_log_path), exist_ok=True)
+            with open(self._eval_log_path, "a") as f:
                     f.write(json.dumps(eval_log) + "\n")
 
                 # Track best
@@ -317,6 +319,7 @@ class Trainer:
             "rng_state": rng_state,
         }
 
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(checkpoint, path)
 
     def load_checkpoint(
