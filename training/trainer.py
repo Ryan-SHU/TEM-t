@@ -16,6 +16,7 @@ import time
 
 import torch
 import torch.nn as nn
+from tqdm import tqdm
 
 from training.batch import TrajectoryBatch
 from training.losses import TEMTLoss, LossOutput
@@ -208,6 +209,14 @@ class Trainer:
         """
         state = TrainState()
 
+        # Use tqdm for a compact progress bar; print eval/save events as they occur.
+        pbar = tqdm(
+            total=num_updates,
+            desc="Training",
+            unit="step",
+            dynamic_ncols=True,
+        )
+
         for step in range(num_updates):
             t_start = time.time()
 
@@ -220,7 +229,15 @@ class Trainer:
             state.global_step += 1
             dt = time.time() - t_start
 
-            # Logging
+            # Update progress bar
+            acc = loss_out.metrics.get("acc_pi", torch.tensor(0.0))
+            pbar.set_postfix({
+                "loss": f"{loss_out.total.item():.3f}",
+                "acc": f"{acc.item():.3f}",
+            })
+            pbar.update(1)
+
+            # Logging (detailed JSONL)
             if state.global_step % log_interval == 0:
                 log_entry = {
                     "global_step": state.global_step,
@@ -233,37 +250,30 @@ class Trainer:
                 with open(self._train_log_path, "a") as f:
                     f.write(json.dumps(log_entry) + "\n")
 
-                print(
-                    f"[step {state.global_step:6d}/{num_updates}] "
-                    f"loss={loss_out.total.item():.4f} "
-                    f"acc_pi={loss_out.metrics['acc_pi'].item():.3f} "
-                    f"dt={dt:.3f}s"
-                )
-
             # Evaluation
             if state.global_step % eval_interval == 0:
+                pbar.write(f"--- Eval @ step {state.global_step} ---")
                 eval_out = self._evaluate(batch_size, n_batches=10)
                 eval_log = {
                     "global_step": state.global_step,
                     **eval_out.metrics,
                 }
                 os.makedirs(os.path.dirname(self._eval_log_path), exist_ok=True)
-            with open(self._eval_log_path, "a") as f:
+                with open(self._eval_log_path, "a") as f:
                     f.write(json.dumps(eval_log) + "\n")
 
                 # Track best
                 if "acc_pi" in eval_out.metrics:
-                    acc = eval_out.metrics["acc_pi"]
-                    if state.best_metric is None or acc > state.best_metric:
-                        state.best_metric = acc
+                    acc_val = eval_out.metrics["acc_pi"]
+                    if state.best_metric is None or acc_val > state.best_metric:
+                        state.best_metric = acc_val
                         self.save_checkpoint(
                             os.path.join(self.exp_dir, "checkpoints", "best.pt"),
                             state,
                         )
 
-                print(
-                    f"[eval  {state.global_step:6d}] "
-                    + " ".join(f"{k}={v:.4f}" for k, v in eval_out.metrics.items())
+                pbar.write(
+                    "  " + " ".join(f"{k}={v:.4f}" for k, v in eval_out.metrics.items())
                 )
 
             # Save checkpoint
@@ -278,6 +288,8 @@ class Trainer:
                     os.path.join(self.exp_dir, "checkpoints", "latest.pt"),
                     state,
                 )
+
+        pbar.close()
 
         # Final save
         self.save_checkpoint(

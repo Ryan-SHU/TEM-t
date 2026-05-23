@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Dict
 
 import torch
+from tqdm import tqdm
 
 from model.temt import TEMTModel
 from training.envs import TrajectorySampler
@@ -90,7 +91,7 @@ class TEMTEvaluator:
         total_steps = 0
         total_loss = 0.0
 
-        for _ in range(n_batches):
+        for _ in tqdm(range(n_batches), desc="Evaluating", unit="batch", dynamic_ncols=True):
             batch = self.sampler.sample_batch(batch_size, self.device)
 
             output = self.model(
@@ -158,7 +159,7 @@ class TEMTEvaluator:
         total_all_correct = 0
         total_all_steps = 0
 
-        for _ in range(n_batches):
+        for _ in tqdm(range(n_batches), desc="Eval zero-shot", unit="batch", dynamic_ncols=True):
             batch = self.sampler.sample_batch(batch_size, self.device)
 
             output = self.model(

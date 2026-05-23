@@ -21,6 +21,7 @@ import json
 import yaml
 
 import torch
+from tqdm import tqdm
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -77,6 +78,8 @@ def main() -> None:
     total_steps = 0
     batch_size = 1
 
+    pbar = tqdm(total=args.n_steps, desc="Rollout", unit="step", dynamic_ncols=True)
+
     with torch.no_grad():
         while total_steps < args.n_steps:
             batch = sampler.sample_batch(batch_size, device)
@@ -94,8 +97,11 @@ def main() -> None:
                 all_attn.append(output.attn_pi.cpu())
 
             total_steps += T
+            pbar.update(T)
             if total_steps >= args.n_steps:
                 break
+
+    pbar.close()
 
     # Concatenate
     g_seq_all = torch.cat(all_g_seq, dim=1)[:, : args.n_steps]      # [1, N, d_g]
@@ -114,7 +120,8 @@ def main() -> None:
 
     # Gridness scores for g units
     gridness_scores = {}
-    for i in range(min(model.d_g, 50)):  # sample first 50 units
+    n_units = min(model.d_g, 50)
+    for i in tqdm(range(n_units), desc="Gridness", unit="unit", dynamic_ncols=True):
         rm_2d = rate_maps_g_2d[i]
         score = gridness_score(rm_2d)
         gridness_scores[str(i)] = score
