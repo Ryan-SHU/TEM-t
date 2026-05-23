@@ -1,0 +1,43 @@
+# Virtual environment
+venv/
+.venv/
+env/
+.env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Test cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation (internal design docs, not for release)
+doc/
+
+# Experiment outputs (generated at runtime)
+experiments/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Misc
+*.log
+*.tmp

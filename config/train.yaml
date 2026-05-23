@@ -1,0 +1,30 @@
+# TEM-t training configuration.
+
+train:
+  seed: 0
+  device: cuda
+
+  batch_size: 32
+  num_updates: 20000
+
+  optimizer:
+    name: adam
+    lr: 0.0003
+    weight_decay: 0.0
+
+  # Loss weights
+  loss:
+    lambda_pi: 1.0
+    lambda_stable: 1.0
+    lambda_g: 0.1
+    lambda_weight: 0.00001
+    lambda_g_l2: 0.0001
+
+  # Gradient clipping
+  grad_clip_norm: 1.0
+
+  # Logging intervals
+  logging:
+    log_interval: 100
+    eval_interval: 500
+    save_interval: 1000

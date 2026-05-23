@@ -1,0 +1,22 @@
+# 2D grid world dataset configuration.
+
+dataset:
+  name: grid2d
+
+  height: 10
+  width: 10
+  n_actions: 4
+  n_sensory: 45
+
+  # Boundary behaviour: stay / wrap / reflect
+  boundary: stay
+
+  # Trajectory sampling
+  episode_length: 200
+  n_train_envs: 1000
+  n_val_envs: 100
+  n_test_envs: 100
+
+  # How sensory classes are assigned to nodes
+  # random_with_replacement means each node gets a random sensory id
+  sensory_assignment: random_with_replacement

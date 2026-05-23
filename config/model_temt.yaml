@@ -1,0 +1,44 @@
+# TEM-t model configuration.
+# Dimensions, activation, and component toggles.
+
+model:
+  name: temt
+
+  # Data dimensions
+  n_sensory: 45
+  n_actions: 4
+
+  # Representation dimensions
+  d_g: 128
+  d_k: 64
+  d_v: 128
+
+  # Recurrent activation: identity / relu / tanh
+  activation: identity
+
+  # Attention
+  beta0: 1.0
+  adaptive_beta: true
+
+  # Position normalisation
+  use_fixed_layer_norm: true
+
+  # Landmark-based position stabilisation
+  use_landmark_stabilization: true
+
+  # Landmark retrieval mode: sensory_only / sensory_pi_disambig
+  landmark_mode: sensory_only
+
+  # Episodic memory
+  memory:
+    max_memory: 201
+    dedup: true
+    dedup_threshold: 1.5
+
+  # Sensory prediction head (MLP)
+  prediction_head:
+    hidden_dim: 128
+    n_layers: 1
+
+  # Initial position encoding scale
+  init_scale: 0.01
