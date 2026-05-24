@@ -22,7 +22,7 @@ model:
   # Recurrent activation: identity / relu / tanh
   # Paper: linear (identity) or ReLU — both produce grid-like patterns.
   # Grid cells appear more readily with identity; band cells with ReLU.
-  activation: relu
+  activation: identity
 
   # Attention
   # Paper: adaptive softmax temperature β = β_0 · log(n_memories + 1)
@@ -52,6 +52,13 @@ model:
   prediction_head:
     hidden_dim: 128
     n_layers: 1
+
+  # TEM baseline parameters (used by script/train_tem_baseline.py)
+  # TEM uses Hebbian conjunctive memory instead of attention slots:
+  #   d_x: sensory projection dim for conjunctive code (outer product with g)
+  #   n_attractor_steps: number of attractor dynamics iterations for retrieval
+  d_x: 32
+  n_attractor_steps: 5
 
   # Initial position encoding scale
   init_scale: 0.01

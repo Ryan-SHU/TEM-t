@@ -93,6 +93,7 @@ TEM-t/
 │
 ├── script/                         # CLI entry points
 │   ├── train_temt.py               # Train a TEM-t model
+│   ├── train_tem_baseline.py       # Train TEM baseline (Hebbian memory)
 │   ├── eval_zero_shot.py           # Evaluate zero-shot prediction
 │   ├── extract_rate_maps.py        # Extract spatial rate maps
 │   └── plot_rate_maps.py           # Visualize rate maps
@@ -165,9 +166,9 @@ This repository reproduces four experiments from the paper.
 **Run:**
 
 ```bash
-# 1. Train the model
+# 1. Train the model (~2h on RTX 4060 with 10k steps)
 python script/train_temt.py \
-  --model_config config/model_temt.yaml \1
+  --model_config config/model_temt.yaml \
   --dataset_config config/dataset_2d_grid.yaml \
   --train_config config/train.yaml \
   --exp_dir experiments/exp01_entorhinal_representations/run001 \
@@ -181,13 +182,23 @@ python script/extract_rate_maps.py \
   --output_dir experiments/exp01_entorhinal_representations/run001/rate_maps \
   --n_steps 50000
 
-# 3. Plot
+# 3. Plot g-unit rate maps and gridness histogram
 python script/plot_rate_maps.py \
   --rate_map_dir experiments/exp01_entorhinal_representations/run001/rate_maps \
   --output_dir experiments/exp01_entorhinal_representations/run001/figures
 ```
 
-**Key configs:** Try `activation: identity` for grid-like patterns and `activation: relu` for mixed grid/band patterns.
+**Key configs:** Try `activation: identity` for grid-like patterns and `activation: relu` for stronger spatial selectivity (band/place-like). Run ReLU variant in a separate directory to compare:
+```bash
+# ReLU variant for comparison
+python script/train_temt.py \
+  --model_config config/model_temt.yaml \
+  --dataset_config config/dataset_2d_grid.yaml \
+  --train_config config/train.yaml \
+  --exp_dir experiments/exp01_entorhinal_representations/run002_relu \
+  --seed 0
+```
+Set `model.activation: relu` in `config/model_temt.yaml` before running.
 
 ---
 
@@ -206,14 +217,16 @@ python script/eval_zero_shot.py \
   --n_batches 100
 ```
 
-**Output:**
+**Expected output** (results from a 10k-step identity run):
 ```json
 {
-  "acc_all": 0.82,
-  "acc_zero_shot": 0.74,
-  "n_zero_shot": 15320
+  "acc_all": 0.498,
+  "acc_zero_shot": 0.621,
+  "n_zero_shot": 494771
 }
 ```
+
+Note: `acc_zero_shot` > `acc_all` is expected — zero-shot transitions (novel edges to known nodes) are easier to predict than transitions to never-visited nodes (information-theoretically impossible).
 
 A high `acc_zero_shot` (well above chance level `1/N_x`) indicates the model has learned the transition structure.
 
@@ -221,23 +234,32 @@ A high `acc_zero_shot` (well above chance level `1/N_x`) indicates the model has
 
 ### Experiment 3: TEM-t vs TEM Sample Efficiency
 
-**Goal:** Compare TEM-t (softmax attention memory) against the original TEM baseline (Hebbian conjunctive memory) on sample efficiency, training time, and zero-shot accuracy.
+**Goal:** Compare TEM-t (softmax attention) against the original TEM baseline (Hebbian conjunctive memory) on sample efficiency and zero-shot accuracy, reproducing paper Fig.4.
 
-**Run:**
-
+**TEM-t side** — same training as Experiment 1:
 ```bash
-# TEM-t (same as Experiment 1 with extended training)
 python script/train_temt.py \
   --model_config config/model_temt.yaml \
   --dataset_config config/dataset_2d_grid.yaml \
   --train_config config/train.yaml \
-  --exp_dir experiments/exp02_sample_efficiency_vs_tem/temt_run001
-
-# For TEM baseline, modify model config to use baseline_tem.py
-# or write a separate comparison script using model/baseline_tem.py
+  --exp_dir experiments/exp02_sample_efficiency_vs_tem/temt_run001 \
+  --seed 0
 ```
 
-**Expected result:** TEM-t reaches higher zero-shot accuracy with fewer gradient updates and similar per-step wall-clock time.
+**TEM baseline side** — train the Hebbian memory model:
+```bash
+python script/train_tem_baseline.py \
+  --model_config config/model_temt.yaml \
+  --dataset_config config/dataset_2d_grid.yaml \
+  --train_config config/train.yaml \
+  --exp_dir experiments/exp02_sample_efficiency_vs_tem/tem_run001 \
+  --seed 0
+```
+Note: TEM uses smaller effective dimensions (`d_g=64, d_x=8`) to keep the Hebbian matrix `M [B, d_p, d_p]` tractable in GPU memory.
+
+**Compare** — evaluate zero-shot accuracy at multiple checkpoints for both models and plot `x=gradient updates, y=Acc_ZS`.
+
+**Expected result:** TEM-t reaches higher zero-shot accuracy with fewer gradient updates (paper Fig.4 shows TEM-t saturating at ~20k steps vs TEM needing ~50k).
 
 ---
 
@@ -245,19 +267,26 @@ python script/train_temt.py \
 
 **Goal:** Show that attention memory slots behave like hippocampal place cells — each slot activates selectively in a restricted spatial region, and these place fields randomly remap across environments.
 
-**How it works:** After training, attention weights `α_{t,j}` (memory neuron activations) are recorded during spatial navigation. The spatial rate map of each memory slot is computed, showing localized place-like firing fields.
+**How it works:** Same trained model as Experiment 1. The attention weights `α_{t,j}` recorded during spatial navigation are treated as memory neuron activations, and their spatial rate maps are computed. Does NOT require separate training.
 
-**Run:** (Uses the same extraction and plotting pipeline as Experiment 1; memory neuron rate maps are saved as `rate_maps_memory.pt`.)
+**Run:** (Reuses Exp1 checkpoint; outputs `rate_maps_memory.pt` for memory neuron analysis.)
 
 ```bash
-# After training, extract rate maps (saves both g-unit and memory-neuron maps)
+# Extract rate maps from the already-trained Exp1 model
 python script/extract_rate_maps.py \
-  --ckpt experiments/exp03_memory_place_cells/run001/checkpoints/latest.pt \
+  --ckpt experiments/exp01_entorhinal_representations/run001/checkpoints/latest.pt \
   --dataset_config config/dataset_2d_grid.yaml \
   --model_config config/model_temt.yaml \
   --output_dir experiments/exp03_memory_place_cells/run001/rate_maps \
   --n_steps 50000
+
+# Plot memory neuron rate maps
+python script/plot_rate_maps.py \
+  --rate_map_dir experiments/exp03_memory_place_cells/run001/rate_maps \
+  --output_dir experiments/exp03_memory_place_cells/run001/figures
 ```
+
+**What to look for:** `memory_neuron_rate_maps.png` — individual memory slots showing localized activation at specific spatial positions (place-like), with different slots tuned to different locations. Cross-environment remapping can be assessed by comparing `memory_rate_maps` across two environments.
 
 ---
 

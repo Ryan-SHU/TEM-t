@@ -10,7 +10,7 @@ train:
 
   # Paper Fig.4: TEM-t converges quickly. 10,000 steps is sufficient
   # to reproduce grid-like rate maps and non-trivial zero-shot accuracy.
-  num_updates: 30000
+  num_updates: 10000
 
   # Paper: BPTT truncated to 25 steps (Appendix B of TEM 2018).
   # Gradients flow through at most this many recurrent steps,
