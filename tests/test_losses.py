@@ -26,7 +26,7 @@ def _make_model_and_batch():
 
     x_ids = torch.randint(0, 10, (B, T + 1))
     x = torch.nn.functional.one_hot(x_ids, 10).float()
-    actions = torch.randint(0, 4, (B, T))
+    actions = torch.randint(0, model.n_actions, (B, T))
     states = torch.randint(0, 100, (B, T + 1))
 
     batch = TrajectoryBatch(

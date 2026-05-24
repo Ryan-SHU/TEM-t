@@ -191,26 +191,29 @@ class TEMMemory(nn.Module):
         BoolTensor [B]
             True for batch items where a write should occur.
         """
-        B = key_g_new.shape[0]
-        device = key_g_new.device
-
         # Constraint 1: memory must not be full
         not_full = memory.size < self.max_memory  # [B]
 
         if not self.dedup_enabled:
             return not_full
 
-        # Constraint 2: dedup — check cosine similarity against existing slots
-        # For each batch item, compute max cos(g) + cos(x) over valid slots
-        # If the max is above threshold, this conjunction is already stored.
+        # Constraint 2: dedup via cosine similarity.
+        # Skip when memory is empty (nothing to compare against).
+        max_size = memory.size.max().item()
+        if max_size == 0:
+            return not_full
 
-        # Normalize for cosine computation
+        # Only check dedup on items that can still write
+        if not not_full.any():
+            return not_full
+
+        # Normalize and compute cosine similarities via batched BMM
         key_g_new_norm = F.normalize(key_g_new, p=2, dim=-1)          # [B, d_k]
         key_g_existing_norm = F.normalize(memory.keys_g, p=2, dim=-1) # [B, M, d_k]
         cos_g = torch.bmm(
             key_g_existing_norm,
-            key_g_new_norm.unsqueeze(-1),  # [B, d_k, 1]
-        ).squeeze(-1)                       # [B, M]
+            key_g_new_norm.unsqueeze(-1),
+        ).squeeze(-1)                                                   # [B, M]
 
         value_x_new_norm = F.normalize(value_x_new, p=2, dim=-1)        # [B, d_v]
         value_x_existing_norm = F.normalize(memory.values_x, p=2, dim=-1)
@@ -221,7 +224,7 @@ class TEMMemory(nn.Module):
 
         combined = cos_g + cos_x  # [B, M]
 
-        # Mask invalid slots: set their similarity to -inf so they are ignored
+        # Mask invalid slots
         combined_masked = combined.masked_fill(~memory.valid_mask, float("-inf"))
 
         max_similarity = combined_masked.max(dim=-1).values  # [B]
@@ -244,12 +247,14 @@ class TEMMemory(nn.Module):
     ) -> Tuple[MemoryState, torch.BoolTensor]:
         """Write a new memory slot for batch items that should be written.
 
-        Items that fail the should_write check are left unchanged.
+        During inference (torch.no_grad): operates in-place for speed.
+        During training (grad enabled): clones data tensors to preserve
+        the autograd chain for BPTT through historical memory reads.
 
         Parameters
         ----------
         memory : MemoryState
-            Current memory (NOT modified in-place — a new copy is returned).
+            Current memory.
         key_g_new : FloatTensor [B, d_k]
             Position key to write.
         value_x_new : FloatTensor [B, d_v]
@@ -264,47 +269,45 @@ class TEMMemory(nn.Module):
         Returns
         -------
         memory_next : MemoryState
-            Updated memory (new instance).
+            Updated memory.
         wrote_mask : BoolTensor [B]
             True for batch items where a write actually occurred.
         """
-        B = g_new.shape[0]
         wrote_mask = self.should_write(memory, key_g_new, value_x_new)  # [B]
 
-        # Clone to avoid mutating the input
-        new_keys_g = memory.keys_g.clone()
-        new_values_x = memory.values_x.clone()
-        new_values_g = memory.values_g.clone()
-        new_raw_x = memory.raw_x.clone()
-        new_valid = memory.valid_mask.clone()
-        new_size = memory.size.clone()
-        new_raw_states = (
-            memory.raw_states.clone() if memory.raw_states is not None else None
-        )
+        if not wrote_mask.any():
+            return memory, wrote_mask
 
-        # Write into slot index = current size for each batch item that qualifies
-        write_indices = new_size[wrote_mask]  # [n_write]
+        # Under autograd: clone the 3 data tensors that participate
+        # in the backward pass. Under no_grad: in-place update.
+        if torch.is_grad_enabled():
+            memory = MemoryState(
+                keys_g=memory.keys_g.clone(),
+                values_x=memory.values_x.clone(),
+                values_g=memory.values_g.clone(),
+                raw_x=memory.raw_x.clone(),
+                valid_mask=memory.valid_mask.clone(),
+                size=memory.size.clone(),
+                raw_states=(
+                    memory.raw_states.clone()
+                    if memory.raw_states is not None
+                    else None
+                ),
+            )
+
+        # Write into slot index = current size per batch item
         batch_indices = wrote_mask.nonzero(as_tuple=False).squeeze(-1)  # [n_write]
+        write_slots = memory.size[wrote_mask]  # [n_write]
 
-        for i, (b_idx, slot) in enumerate(zip(batch_indices, write_indices)):
-            s = int(slot.item())
-            new_keys_g[b_idx, s] = key_g_new[b_idx]
-            new_values_x[b_idx, s] = value_x_new[b_idx]
-            new_values_g[b_idx, s] = g_new[b_idx]
-            new_raw_x[b_idx, s] = x_new[b_idx]
-            new_valid[b_idx, s] = True
-            new_size[b_idx] = s + 1
-            if new_raw_states is not None and states_new is not None:
-                new_raw_states[b_idx, s] = states_new[b_idx]
+        for b_idx, slot in zip(batch_indices.tolist(), write_slots.tolist()):
+            s = int(slot)
+            memory.keys_g[b_idx, s] = key_g_new[b_idx]
+            memory.values_x[b_idx, s] = value_x_new[b_idx]
+            memory.values_g[b_idx, s] = g_new[b_idx]
+            memory.raw_x[b_idx, s] = x_new[b_idx]
+            memory.valid_mask[b_idx, s] = True
+            memory.size[b_idx] = s + 1
+            if memory.raw_states is not None and states_new is not None:
+                memory.raw_states[b_idx, s] = states_new[b_idx]
 
-        memory_next = MemoryState(
-            keys_g=new_keys_g,
-            values_x=new_values_x,
-            values_g=new_values_g,
-            raw_x=new_raw_x,
-            valid_mask=new_valid,
-            size=new_size,
-            raw_states=new_raw_states,
-        )
-
-        return memory_next, wrote_mask
+        return memory, wrote_mask

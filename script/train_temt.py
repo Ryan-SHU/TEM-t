@@ -76,7 +76,11 @@ def build_model(model_config: dict) -> TEMTModel:
     )
 
 
-def build_sampler(dataset_config: dict, seed: int) -> TrajectorySampler:
+def build_sampler(
+    dataset_config: dict,
+    seed: int,
+    episode_length: int | None = None,
+) -> TrajectorySampler:
     """Construct a trajectory sampler from configuration.
 
     Parameters
@@ -85,12 +89,17 @@ def build_sampler(dataset_config: dict, seed: int) -> TrajectorySampler:
         Parsed dataset configuration.
     seed : int
         Random seed.
+    episode_length : int or None
+        Override the dataset's episode_length. If None, uses the config value.
+        Used for BPTT truncation: training uses short (25) episodes,
+        evaluation uses full (200) episodes.
 
     Returns
     -------
     TrajectorySampler
     """
     cfg = dataset_config["dataset"]
+    ep_len = episode_length if episode_length is not None else cfg["episode_length"]
 
     spec = GridWorldSpec(
         height=cfg["height"],
@@ -102,13 +111,18 @@ def build_sampler(dataset_config: dict, seed: int) -> TrajectorySampler:
     return TrajectorySampler(
         spec=spec,
         n_sensory=cfg["n_sensory"],
-        episode_length=cfg["episode_length"],
+        episode_length=ep_len,
         n_envs=cfg["n_train_envs"],
         seed=seed,
     )
 
 
-def build_val_sampler(dataset_config: dict, seed: int) -> TrajectorySampler:
+def build_val_sampler(
+    dataset_config: dict,
+    seed: int,
+    episode_length: int | None = None,
+    n_envs: int | None = None,
+) -> TrajectorySampler:
     """Construct a validation trajectory sampler.
 
     Parameters
@@ -117,12 +131,18 @@ def build_val_sampler(dataset_config: dict, seed: int) -> TrajectorySampler:
         Parsed dataset configuration.
     seed : int
         Random seed (offset to avoid overlap with train).
+    episode_length : int or None
+        Override episode length for validation.
+    n_envs : int or None
+        Override number of evaluation environments.
 
     Returns
     -------
     TrajectorySampler
     """
     cfg = dataset_config["dataset"]
+    ep_len = episode_length if episode_length is not None else cfg["episode_length"]
+    n_env = n_envs if n_envs is not None else cfg.get("n_val_envs", 100)
 
     spec = GridWorldSpec(
         height=cfg["height"],
@@ -134,8 +154,8 @@ def build_val_sampler(dataset_config: dict, seed: int) -> TrajectorySampler:
     return TrajectorySampler(
         spec=spec,
         n_sensory=cfg["n_sensory"],
-        episode_length=cfg["episode_length"],
-        n_envs=cfg.get("n_val_envs", 100),
+        episode_length=ep_len,
+        n_envs=n_env,
         seed=seed + 1000000,  # offset seed
     )
 
@@ -183,8 +203,12 @@ def main() -> None:
         weight_decay=optimizer_cfg.get("weight_decay", 0.0),
     )
 
-    train_sampler = build_sampler(dataset_cfg, args.seed)
-    val_sampler = build_val_sampler(dataset_cfg, args.seed)
+    # BPTT truncation: training uses short episodes, eval uses full length
+    trunc_len = train_cfg["train"].get("truncation_len", 25)
+    full_len = dataset_cfg["dataset"].get("episode_length", 200)
+
+    train_sampler = build_sampler(dataset_cfg, args.seed, episode_length=trunc_len)
+    val_sampler = build_val_sampler(dataset_cfg, args.seed, episode_length=full_len)
     evaluator = TEMTEvaluator(model, val_sampler, device)
 
     # Build trainer

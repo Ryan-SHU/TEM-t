@@ -21,7 +21,7 @@ class TestIntegration:
     def test_full_pipeline() -> None:
         """End-to-end: sample -> forward -> loss -> backward -> step."""
         # Setup
-        spec = GridWorldSpec(height=5, width=5, n_actions=4, boundary="stay")
+        spec = GridWorldSpec(height=5, width=5, n_actions=5, boundary="stay")
         sampler = TrajectorySampler(
             spec=spec,
             n_sensory=10,
@@ -32,7 +32,7 @@ class TestIntegration:
 
         model = TEMTModel(
             n_sensory=10,
-            n_actions=4,
+            n_actions=5,
             d_g=16,
             d_k=8,
             d_v=12,
@@ -80,7 +80,7 @@ class TestIntegration:
         )
 
         model = TEMTModel(
-            n_sensory=10, n_actions=4,
+            n_sensory=10, n_actions=5,
             d_g=16, d_k=8, d_v=12,
             max_memory=15, memory_dedup=False,
         )
@@ -97,13 +97,13 @@ class TestIntegration:
     @staticmethod
     def test_training_loop_converges() -> None:
         """A few training steps should reduce loss."""
-        spec = GridWorldSpec(height=5, width=5, n_actions=4, boundary="stay")
+        spec = GridWorldSpec(height=5, width=5, n_actions=5, boundary="stay")
         sampler = TrajectorySampler(
             spec=spec, n_sensory=10, episode_length=10, n_envs=20, seed=42,
         )
 
         model = TEMTModel(
-            n_sensory=10, n_actions=4,
+            n_sensory=10, n_actions=5,
             d_g=16, d_k=8, d_v=12,
             max_memory=15, memory_dedup=False,
         )

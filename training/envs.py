@@ -104,7 +104,7 @@ def step_grid(
     """Execute one action on the grid, returning the next state.
 
     Action encoding: 0 = North (row-1), 1 = East (col+1),
-    2 = South (row+1), 3 = West (col-1).
+    2 = South (row+1), 3 = West (col-1), 4 = Stay.
 
     Parameters
     ----------
@@ -131,6 +131,8 @@ def step_grid(
         row += 1
     elif action == 3:    # West
         col -= 1
+    elif action == 4:    # Stay — no movement
+        pass
 
     # Boundary handling
     if spec.boundary == "stay":

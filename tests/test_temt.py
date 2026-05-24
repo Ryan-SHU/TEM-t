@@ -42,11 +42,11 @@ def _make_mini_model(**overrides) -> TEMTModel:
     return TEMTModel(**defaults)
 
 
-def _make_dummy_batch(B: int, T: int, n_sensory: int = 10) -> TrajectoryBatch:
+def _make_dummy_batch(B: int, T: int, n_sensory: int = 10, n_actions: int = 4) -> TrajectoryBatch:
     """Create a dummy trajectory batch."""
     x_ids = torch.randint(0, n_sensory, (B, T + 1))
     x = torch.nn.functional.one_hot(x_ids, n_sensory).float()
-    actions = torch.randint(0, 4, (B, T))
+    actions = torch.randint(0, n_actions, (B, T))
     states = torch.randint(0, 100, (B, T + 1))
 
     return TrajectoryBatch(
@@ -96,7 +96,7 @@ class TestTEMTModel:
         x0[:, 0] = 1.0
         memory = model.init_memory(g0, x0)
 
-        actions = torch.randint(0, 4, (B,))
+        actions = torch.randint(0, model.n_actions, (B,))
         pred = model.predict_next(g0, memory, actions)
 
         assert pred.g_pi.shape == (B, 16)
@@ -116,7 +116,7 @@ class TestTEMTModel:
         x0[:, 0] = 1.0
         memory = model.init_memory(g0, x0)
 
-        actions = torch.randint(0, 4, (B,))
+        actions = torch.randint(0, model.n_actions, (B,))
         pred = model.predict_next(g0, memory, actions)
 
         x_next = torch.zeros(B, 10)
@@ -141,7 +141,7 @@ class TestTEMTModel:
         x0[:, 0] = 1.0
         memory = model.init_memory(g0, x0)
 
-        actions = torch.randint(0, 4, (B,))
+        actions = torch.randint(0, model.n_actions, (B,))
         x_next = torch.zeros(B, 10)
         x_next[:, 3] = 1.0
 
@@ -156,7 +156,7 @@ class TestTEMTModel:
         model = _make_mini_model(max_memory=10)
 
         B, T = 4, 8
-        batch = _make_dummy_batch(B, T, n_sensory=10)
+        batch = _make_dummy_batch(B, T, n_sensory=10, n_actions=4)
 
         output = model(batch, return_traces=True, compute_stable_prediction=True)
 
@@ -186,7 +186,7 @@ class TestTEMTModel:
         memory = model.init_memory(g0, x0)
 
         # Run one predict with fixed inputs
-        actions = torch.randint(0, 4, (B,))
+        actions = torch.randint(0, model.n_actions, (B,))
         pred1 = model.predict_next(g0, memory, actions)
 
         # Run again with same inputs (should be identical)

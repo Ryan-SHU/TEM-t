@@ -16,6 +16,7 @@ import time
 
 import torch
 import torch.nn as nn
+from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 
 from training.batch import TrajectoryBatch
@@ -105,6 +106,10 @@ class Trainer:
         self._train_log_path = os.path.join(exp_dir, "logs", "train_metrics.jsonl")
         self._eval_log_path = os.path.join(exp_dir, "logs", "eval_metrics.jsonl")
 
+        # Mixed-precision scaler (GPU only; no-op on CPU)
+        self._use_amp = (device.type == "cuda")
+        self.scaler = GradScaler() if self._use_amp else None
+
     # ------------------------------------------------------------------
     # Single training step
     # ------------------------------------------------------------------
@@ -130,21 +135,26 @@ class Trainer:
         self.model.train()
         self.optimizer.zero_grad()
 
-        # Forward
-        output = self.model(batch, return_traces=True, compute_stable_prediction=True)
+        # Mixed-precision forward (autocast off for CPU)
+        with autocast('cuda') if self._use_amp else torch.enable_grad():
+            output = self.model(
+                batch, return_traces=True, compute_stable_prediction=True
+            )
+            loss_out = self.loss_fn(output, batch, self.model)
 
-        # Loss
-        loss_out = self.loss_fn(output, batch, self.model)
-
-        # Backward
-        loss_out.total.backward()
-
-        # Gradient clipping
-        if self.grad_clip_norm is not None:
-            nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
-
-        # Optimizer step
-        self.optimizer.step()
+        # Backward with gradient scaling
+        if self._use_amp:
+            self.scaler.scale(loss_out.total).backward()
+            if self.grad_clip_norm is not None:
+                self.scaler.unscale_(self.optimizer)
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            loss_out.total.backward()
+            if self.grad_clip_norm is not None:
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip_norm)
+            self.optimizer.step()
 
         return loss_out
 
@@ -330,6 +340,8 @@ class Trainer:
             "best_metric": train_state.best_metric,
             "rng_state": rng_state,
         }
+        if self._use_amp and self.scaler is not None:
+            checkpoint["scaler_state_dict"] = self.scaler.state_dict()
 
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(checkpoint, path)
@@ -354,6 +366,8 @@ class Trainer:
 
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if self._use_amp and self.scaler is not None and "scaler_state_dict" in checkpoint:
+            self.scaler.load_state_dict(checkpoint["scaler_state_dict"])
 
         state = TrainState(
             global_step=checkpoint["global_step"],
