@@ -8,8 +8,8 @@
 
 > James C.R. Whittington, Joseph Warren, Tim E.J. Behrens.
 > *"Relating Transformers to Models and Neural Representations of the Hippocampal Formation."*
-> arXiv:2112.04035, 2021.
-> [[arXiv](https://arxiv.org/abs/2112.04035)]
+> In *International Conference on Learning Representations (ICLR)*, 2022.
+> [[ICLR 2022](https://openreview.net/forum?id=B8DVo9B1YE0)] [[arXiv](https://arxiv.org/abs/2112.04035)]
 
 This repository reproduces the TEM-t (Temporal Episodic Memory Transformer) model from the paper. No official implementation was found, so all code is built from the paper's mathematical descriptions and appendix.
 
@@ -319,11 +319,11 @@ All hyperparameters are controlled via YAML files in `config/`:
 If you use this code in your research, please cite both the original paper and this reproduction:
 
 ```bibtex
-@article{whittington2021relating,
-  title   = {Relating Transformers to Models and Neural Representations of the Hippocampal Formation},
-  author  = {Whittington, James C.R. and Warren, Joseph and Behrens, Tim E.J.},
-  journal = {arXiv preprint arXiv:2112.04035},
-  year    = {2021}
+@inproceedings{whittington2022relating,
+  title     = {Relating Transformers to Models and Neural Representations of the Hippocampal Formation},
+  author    = {Whittington, James C. R. and Warren, Joseph and Behrens, Timothy E. J.},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2022}
 }
 
 @software{TEMt_reproduction,
